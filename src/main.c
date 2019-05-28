@@ -16,19 +16,27 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 	MPI_Comm_size(MPI_COMM_WORLD,&n_of_processors);
 	init_custom_types();
-	/*chunk a = new_chunk("",0,0);
+	
+	//---master
+	//apri il file di indice e leggi i nomi dei files
+	// calcola come distribuire i files
+	
+	//--comune	
+	//distribuisci i files tra i processori (scatter)
+	//conta il numero di righe
+	//restituisci il numero di righe (gather)
 
-	if(n_of_processors == 2){
-		if(my_rank == 0){
-			a = new_chunk("pippo",0,9);
-			printf("Cunk %s\n",get_chunk_filename(a));
-			MPI_Send(a,1,mpi_text_file_chunk,1,1,MPI_COMM_WORLD);
-			printf("Chunk sent\n");
-		} else {
-			MPI_Recv(a,1,mpi_text_file_chunk,0,1,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			printf("recieved chunk %s\n",get_chunk_filename(a));
-		}
-	}*/
+	//---master 
+	//prepara i chunk
+
+	//comune
+	//scatter(v) dei chunk
+	//per ogni chunk, conta il numero di parole nel chunk e mettile nel dizionario locale
+	//gather dei dizionari
+
+	//---master
+	//fondi i dizionari
+
 
 	MPI_Finalize();
 }
