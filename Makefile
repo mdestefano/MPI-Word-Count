@@ -1,4 +1,4 @@
-CC		:= gcc
+CC		:= mpicc
 C_FLAGS := -Wall -Wextra
 
 BIN		:= bin
@@ -14,13 +14,15 @@ else
 EXECUTABLE	:= main
 endif
 
+NP := 2
+
 all: $(BIN)/$(EXECUTABLE)
 
 clean:
 	-$(RM) $(BIN)/$(EXECUTABLE)
 
 run: all
-	./$(BIN)/$(EXECUTABLE)
+	mpirun -np $(NP) ./$(BIN)/$(EXECUTABLE) 
 
 $(BIN)/$(EXECUTABLE): $(SRC)/*
 	$(CC) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
