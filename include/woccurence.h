@@ -1,10 +1,17 @@
-#include <stddef.h>
+#include <stdlib.h>
 #include "mpi.h"
-#include "../include/uthash.h"
 #define WORD_SIZE 64
 
 MPI_Datatype mpi_woccurence_type;
 
 typedef struct woccurrence_c* woccurrence;
 
-//uso la lista implementata con l'array in modo che posso poi ottenere oggetti già allocati contiguamente
+void initialize_woccurence_type();
+
+woccurrence new_woccurence(const char *word);
+
+void add_occurrence(woccurrence wordocc);
+
+void add_n_occurrence(woccurrence wordocc, size_t occurrences);
+
+size_t get_occurrences(woccurrence wordocc);
