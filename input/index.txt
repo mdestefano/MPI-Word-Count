@@ -1,4 +1,2 @@
-a
-b
-c
-d
+input/a.txt
+input/b.txt

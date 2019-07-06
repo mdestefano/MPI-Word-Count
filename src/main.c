@@ -59,16 +59,34 @@ void divide_files(size_t n_of_files,int nofproc,int *sendcounts, int *displs){
 	}
 }
 
+void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
+	char* line = NULL;
+	size_t len;
+	for(int i = 0;i<n_of_files;i++){
+		printf("DBG: opening %s\n",filenames[i]);
+		FILE* current_file = fopen(filenames[i],"r");
+		if(filenames == NULL){
+			printf("Error opening files");
+			exit(EXIT_FAILURE);
+		}
+		while (getline(&line,&len,current_file) != -1){
+			files_line_count[i] += 1;
+		}
+		printf("DBG file %s has %d lines\n",filenames[i],files_line_count[i]);
+		fclose(current_file);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	
-	int my_rank,n_of_processors, *file_sendcounts, *file_dspls, recv_file_count;
+	int my_rank,nofproc, *file_sendcounts, *file_dspls, local_file_count,*local_file_lines_count = NULL;
 	size_t n_of_files;
-	char **filenames = NULL, **recv_file_buf;
+	char **filenames = NULL, **local_filenames;
 	int send_index;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-	MPI_Comm_size(MPI_COMM_WORLD,&n_of_processors);
+	MPI_Comm_size(MPI_COMM_WORLD,&nofproc);
 	init_custom_types();
 	
 	
@@ -77,49 +95,61 @@ int main(int argc, char *argv[]) {
 		
 		filenames = detect_files(filenames,&n_of_files);
 		puts(filenames[0]);	
-		file_sendcounts = malloc(n_of_processors*sizeof(int));
-		file_dspls = malloc(n_of_processors*sizeof(int));
+		file_sendcounts = malloc(nofproc*sizeof(int));
+		file_dspls = malloc(nofproc*sizeof(int));
 
 		if(file_sendcounts == NULL || file_dspls == NULL){
 			printf("Memory error !");
 			exit(EXIT_FAILURE);
 		}		
-		divide_files(n_of_files,n_of_processors,file_sendcounts,file_dspls);
+		divide_files(n_of_files,nofproc,file_sendcounts,file_dspls);
 		send_index = file_sendcounts[0];
 	}
 	
 	//--comune
 	puts("DBG: COMUNICATION STARTING");
-	MPI_Scatter(file_sendcounts,1,MPI_INT,&recv_file_count,1,MPI_INT,0,MPI_COMM_WORLD);
-	printf("DBG: proc. %d recv_count %d\n",my_rank,recv_file_count);
+	MPI_Scatter(file_sendcounts,1,MPI_INT,&local_file_count,1,MPI_INT,0,MPI_COMM_WORLD);
+	printf("DBG: proc. %d recv_count %d\n",my_rank,local_file_count);
 
-	recv_file_buf = malloc(recv_file_count*sizeof(char*));	
-	if(recv_file_buf == NULL){
+	local_filenames = malloc(local_file_count*sizeof(char*));	
+	if(local_filenames == NULL){
 		exit(EXIT_FAILURE);
 	}
 
-	for(int i = 0; i<recv_file_count;i++){
-		recv_file_buf[i] = malloc(FILENAME_SIZE * sizeof(char));	
-		if(recv_file_buf[i] == NULL){
+	for(int i = 0; i<local_file_count;i++){
+		local_filenames[i] = malloc(FILENAME_SIZE * sizeof(char));	
+		if(local_filenames[i] == NULL){
 			exit(EXIT_FAILURE);
 		}
 	}
 		
 	puts("DBG: FILENAMES ARE ARRIVING!");
 	if(my_rank == 0){
-		for(int reciever = 1; reciever <n_of_processors;reciever++){
+		for(int reciever = 1; reciever <nofproc;reciever++){
 			for(int i = 0;i<file_sendcounts[reciever];i++){
 				printf("Master sending %s\n",filenames[send_index]);
 				MPI_Send(filenames[send_index],strlen(filenames[send_index])+1,MPI_CHAR,reciever,0,MPI_COMM_WORLD);
 				send_index++;
 			}
 		}
+
+		for(int i = 0;i<local_file_count;i++){
+			local_filenames[i] = strcpy(local_filenames[i],filenames[i]);
+			printf("Master keeps %s\n",local_filenames[i]);
+		}
+
 	} else {
-		for(int i= 0; i<recv_file_count;i++){
-			MPI_Recv(recv_file_buf[i],FILENAME_SIZE,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			printf("process %d recieved %s\n",my_rank,recv_file_buf[i]);
+		for(int i= 0; i<local_file_count;i++){
+			MPI_Recv(local_filenames[i],FILENAME_SIZE,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			printf("process %d recieved %s\n",my_rank,local_filenames[i]);
 		}
 	} 
+
+	local_file_lines_count = malloc(local_file_count*sizeof(int));
+	for(int i = 0; i<local_file_count;i++){
+		local_file_lines_count[i] = 0;
+	}
+	count_file_lines(local_filenames,local_file_lines_count,local_file_count);
 	//restituisci il numero di righe (gather)
 
 	//---master 
