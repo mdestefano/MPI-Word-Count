@@ -4,6 +4,8 @@
 #include "chunk.h"
 #include "woccurence.h"
 
+#define MASTER 0
+
 void init_custom_types(){
 	initialize_chunk_type();
 	initialize_woccurence_type();
@@ -34,14 +36,12 @@ char** detect_files(char **filenames, size_t *n){
 			}
 		}
 	}
-	puts(filenames[2]);
 	fclose(index_file);
 	(*n) = i;
 	return filenames;
 }
 
 void divide_files(size_t n_of_files,int nofproc,int *sendcounts, int *displs){	
-	puts("DBG: MASTER: DIVIDE FILES: EVERITYHING OK SO FAR");
 	int file_per_processor = n_of_files/nofproc;
 	int rem = n_of_files%nofproc;
 	int sum = 0;
@@ -54,16 +54,12 @@ void divide_files(size_t n_of_files,int nofproc,int *sendcounts, int *displs){
 		displs[i] = sum;
 		sum += sendcounts[i];
 	}
-	for(int i = 0; i<nofproc;i++){
-		printf("DIVIDE FILES: sendcounts[%d] = %d\n",i,sendcounts[i]);
-	}
 }
 
 void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 	char* line = NULL;
 	size_t len;
-	for(int i = 0;i<n_of_files;i++){
-		printf("DBG: opening %s\n",filenames[i]);
+	for(int i = 0;i<n_of_files;i++){		
 		FILE* current_file = fopen(filenames[i],"r");
 		if(filenames == NULL){
 			printf("Error opening files");
@@ -71,15 +67,73 @@ void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 		}
 		while (getline(&line,&len,current_file) != -1){
 			files_line_count[i] += 1;
-		}
-		printf("DBG file %s has %d lines\n",filenames[i],files_line_count[i]);
+		}		
 		fclose(current_file);
 	}
 }
 
+void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls){
+	int total_lines = 0, lines_per_processor, reminder;
+	int lines_left, current_file_lines_left;
+	size_t file_index = 0;
+	int line_index = 0;
+
+	for(size_t i = 0;i<n_of_files;i++){
+		total_lines += file_lines_count[i];
+	}
+
+	lines_per_processor = total_lines/nofproc;
+	reminder = total_lines%nofproc;
+	current_file_lines_left = file_lines_count[file_index];
+
+	//output_chunks = malloc(sizeof(chunk)*(*nofchunks));
+
+	for(int current_proc = 0;current_proc<nofproc;current_proc++){
+		lines_left = lines_per_processor;
+
+		if(reminder > 0){
+			lines_left += 1;
+			reminder--;
+		}
+		printf("DBG: proc %d should have %d lines\n",current_proc,lines_left);
+
+		while (lines_left>0){			
+			
+			if(lines_left>=current_file_lines_left){
+				//crea nuovo chunk
+				printf("DBG: created new chunk in file %s from %d to %d for proc %d \n",filenames[file_index],line_index,file_lines_count[file_index] - 1,current_proc);
+				lines_left -= (file_lines_count[file_index] -line_index);
+				line_index = 0;
+				file_index += 1;
+				current_file_lines_left = file_lines_count[file_index];
+				printf("DBG lines left %d\n",lines_left);
+			} else {
+				//crea nuovo chunk
+				printf("DBG: created new chunk in file %s from %d to %d for proc %d \n",filenames[file_index],line_index,line_index + lines_left-1,current_proc);
+				line_index += lines_left;
+				current_file_lines_left -= lines_left;
+				lines_left = 0;
+			}
+			
+
+			/*if(actual_chunks_size>(*nofchunks)){
+				(*nofchunks) *= 2;
+				output_chunks = realloc(output_chunks,(*nofchunks)*sizeof(chunk));					
+			}
+
+			output_chunks[actual_chunks_size] = new_chunk(filenames[file_index],)*/
+
+		
+		}
+		
+	}
+
+}
+
 int main(int argc, char *argv[]) {
 	
-	int my_rank,nofproc, *file_sendcounts, *file_dspls, local_file_count,*local_file_lines_count = NULL;
+	int my_rank,nofproc, local_file_count;
+	int *file_sendcounts, *file_dspls,*local_file_lines_count = NULL, *global_file_lines_count;
 	size_t n_of_files;
 	char **filenames = NULL, **local_filenames;
 	int send_index;
@@ -91,7 +145,7 @@ int main(int argc, char *argv[]) {
 	
 	
 
-	if(my_rank == 0){
+	if(my_rank == MASTER){
 		
 		filenames = detect_files(filenames,&n_of_files);
 		puts(filenames[0]);	
@@ -104,11 +158,16 @@ int main(int argc, char *argv[]) {
 		}		
 		divide_files(n_of_files,nofproc,file_sendcounts,file_dspls);
 		send_index = file_sendcounts[0];
+		global_file_lines_count = malloc(n_of_files*sizeof(int));
+		if(global_file_lines_count == NULL){
+			printf("Memory error !");
+			exit(EXIT_FAILURE);
+		}
 	}
 	
 	//--comune
 	puts("DBG: COMUNICATION STARTING");
-	MPI_Scatter(file_sendcounts,1,MPI_INT,&local_file_count,1,MPI_INT,0,MPI_COMM_WORLD);
+	MPI_Scatter(file_sendcounts,1,MPI_INT,&local_file_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);
 	printf("DBG: proc. %d recv_count %d\n",my_rank,local_file_count);
 
 	local_filenames = malloc(local_file_count*sizeof(char*));	
@@ -124,11 +183,11 @@ int main(int argc, char *argv[]) {
 	}
 		
 	puts("DBG: FILENAMES ARE ARRIVING!");
-	if(my_rank == 0){
+	if(my_rank == MASTER){
 		for(int reciever = 1; reciever <nofproc;reciever++){
 			for(int i = 0;i<file_sendcounts[reciever];i++){
 				printf("Master sending %s\n",filenames[send_index]);
-				MPI_Send(filenames[send_index],strlen(filenames[send_index])+1,MPI_CHAR,reciever,0,MPI_COMM_WORLD);
+				MPI_Send(filenames[send_index],strlen(filenames[send_index])+1,MPI_CHAR,reciever,MASTER,MPI_COMM_WORLD);
 				send_index++;
 			}
 		}
@@ -140,7 +199,7 @@ int main(int argc, char *argv[]) {
 
 	} else {
 		for(int i= 0; i<local_file_count;i++){
-			MPI_Recv(local_filenames[i],FILENAME_SIZE,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			MPI_Recv(local_filenames[i],FILENAME_SIZE,MPI_CHAR,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 			printf("process %d recieved %s\n",my_rank,local_filenames[i]);
 		}
 	} 
@@ -150,9 +209,17 @@ int main(int argc, char *argv[]) {
 		local_file_lines_count[i] = 0;
 	}
 	count_file_lines(local_filenames,local_file_lines_count,local_file_count);
-	//restituisci il numero di righe (gather)
+	MPI_Gatherv(local_file_lines_count,local_file_count,MPI_INT,global_file_lines_count,file_sendcounts,file_dspls,MPI_INT,MASTER,MPI_COMM_WORLD);
 
-	//---master 
+	if(my_rank == MASTER){
+		for(size_t i = 0;i<n_of_files;i++){
+			printf("MASTER: DBG: file %s has %d lines\n",filenames[i],global_file_lines_count[i]);
+		}
+	}
+
+	if(my_rank == MASTER){
+		prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,NULL,NULL,NULL,NULL);
+	}
 	//prepara i chunk
 
 	//comune
