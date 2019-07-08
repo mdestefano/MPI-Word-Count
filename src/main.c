@@ -72,7 +72,7 @@ void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 	}
 }
 
-void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls){
+chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls){
 	int total_lines = 0, lines_per_processor, reminder;
 	int lines_left, current_file_lines_left;
 	size_t file_index = 0, old_file_index = 0;
@@ -138,12 +138,14 @@ void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,i
 			
 
 		}
-		sum += chunk_sendcount[current_proc];
 		chunk_dspls[current_proc] = sum;
+		sum += chunk_sendcount[current_proc];
+		
 		
 	}
 
 	(*nofchunks) = actual_chunks_size;
+	return output_chunks;
 
 }
 
@@ -154,8 +156,9 @@ int main(int argc, char *argv[]) {
 	size_t n_of_files,nofchunks;
 	char **filenames = NULL, **local_filenames;
 	int send_index;
-	chunk *chunk_collection = NULL;
+	chunk *chunk_collection = NULL,*local_chunks = NULL;
 	int *chunk_sendcount,*chunk_dspls;
+	int local_chunk_count;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -247,13 +250,52 @@ int main(int argc, char *argv[]) {
 			chunk_sendcount[i] = 0;
 			chunk_dspls[i] = 0;
 		}
-		prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls);
+		chunk_collection = prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls);		
+		for(int i = 0; i<nofproc;i++){
+			printf("DBG send_count[%d]=%d, displs[%d]=%d\n",i,chunk_sendcount[i],i,chunk_dspls[i]);
+		}
 	}
-	//prepara i chunk
 
 	//comune
-	//scatter(v) dei chunk
-	//per ogni chunk, conta il numero di parole nel chunk e mettile nel dizionario locale
+	MPI_Scatter(chunk_sendcount,1,MPI_INT,&local_chunk_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);
+	printf("DBG: Process %d should recieve %d chunks\n",my_rank,local_chunk_count);
+	local_chunks = malloc(local_chunk_count*sizeof(chunk));
+	
+	if(local_chunks == NULL){
+		printf("Memory erorr !\n");
+		exit(EXIT_FAILURE);
+	}
+
+	for(int i = 0;i<local_chunk_count;i++){
+		local_chunks[i] = new_empty_chunk();		
+	}
+
+	/* if chunk structure is change not to be used as a pointer to structure,
+	 scatterv could be possible.*/
+	if(my_rank == MASTER){
+		send_index = chunk_sendcount[0];
+		for(int reciever = 1; reciever <nofproc;reciever++){
+			for(int i = 0;i<chunk_sendcount[reciever];i++){				
+				MPI_Send(chunk_collection[send_index],1,mpi_text_file_chunk,reciever,MASTER,MPI_COMM_WORLD);
+				send_index++;
+			}
+		}
+
+		for(int i = 0;i<local_chunk_count;i++){
+			local_chunks[i] = chunk_collection[i];
+		}
+
+	} else {
+		for(int i= 0; i<local_chunk_count;i++){
+			MPI_Recv(local_chunks[i],1,mpi_text_file_chunk,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);			
+		}
+	}
+
+	for(int i = 0;i<local_chunk_count;i++){
+		printf("DBG: proc %d recieved ",my_rank);
+		print_chunk(local_chunks[i]); 	
+	}
+	
 	//gather dei dizionari
 
 	//---master

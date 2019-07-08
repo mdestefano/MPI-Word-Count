@@ -20,3 +20,5 @@ size_t get_chunk_end_index(chunk c);
 bool chunk_equals(chunk c1,chunk c2);
 
 void print_chunk(chunk c1);
+
+chunk new_empty_chunk();

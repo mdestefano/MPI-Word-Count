@@ -69,3 +69,18 @@ bool chunk_equals(chunk c1,chunk c2){
 void print_chunk(chunk c1){
     printf("CHUNK: filename=%s, start_index=%zu, end_index=%zu\n",c1->filename,c1->start_index,c1->end_index);
 }
+
+chunk new_empty_chunk(){
+    struct chunk_c *a_chunk = malloc(sizeof(struct chunk_c));
+    if(a_chunk == NULL){
+        return NULL;
+    }
+    //a_chunk->filename = malloc(strlen(filename)+1);
+    if(a_chunk->filename == NULL){
+        return NULL;
+    }
+    strcpy(a_chunk->filename,"");
+    a_chunk->start_index = 0;
+    a_chunk->end_index = 0;
+    return a_chunk;
+}
