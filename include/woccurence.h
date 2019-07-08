@@ -12,8 +12,10 @@ woccurrence new_woccurence(const char *word);
 
 void add_occurrence(woccurrence wordocc);
 
-void add_n_occurrence(woccurrence wordocc, size_t occurrences);
+void add_n_occurrence(woccurrence wordocc, int occurrences);
 
-size_t get_occurrences(woccurrence wordocc);
+int get_occurrences(woccurrence wordocc);
 
 char* get_word(woccurrence wordocc);
+
+void print_occurrence(woccurrence occ);

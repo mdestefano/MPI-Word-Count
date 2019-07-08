@@ -156,7 +156,8 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 	ssize_t linesize;
 	wordsmap map = new_wordsmap();
 	char* curr_line = NULL;
-	char* fragment = NULL;
+	char* single_fragment;	
+	
 
 	for(int curr_chunk = 0; curr_chunk<nofchunks;curr_chunk++){
 		print_chunk(chunks[curr_chunk]);
@@ -169,32 +170,26 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 		curr_line_index = 0;
 		while(curr_line_index < get_chunk_start_index(chunks[curr_chunk])){
 			getline(&curr_line,&len,curr_file);
-			curr_line_index++;		
+			curr_line_index++;
 			free(curr_line);
-			curr_line = NULL;	
+			curr_line = NULL;
 		}
 
-		do{
-			linesize = getline(&curr_line,&len,curr_file);
+		while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1){											
+			linesize = getline(&curr_line,&len,curr_file);			
 			if(linesize != -1){
-				curr_line[strlen(curr_line)-1] = '\0';
-				printf("DBG: curr_line_index = %zu Processing line: %s\n",curr_line_index,curr_line);
-				
-				fragment = strtok (curr_line," ,.-");
-  				while (fragment != NULL) {
-					printf("DBG: fragment %s\n",fragment);  
-    				add_word(map,fragment);					
-    				fragment = strtok (NULL, " ,.-");
-  				}
-
-
+				//curr_line[linesize] = '\0';
+				//printf("DBG: Current line: %s\n",curr_line);
+				while ((single_fragment = strsep(&curr_line," .,-\n")) != NULL && strlen(single_fragment) >0){
+					//printf("DBG: Fragment %s\n",single_fragment);
+					add_word(map,single_fragment);
+				}
 				free(curr_line);
-				curr_line = NULL;
-				
+				curr_line = NULL;				
 			}
+			
 			curr_line_index++;
-		} while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1);
-		print_map(map);
+		} 		
 	}
 
 	output_map = map;
@@ -212,7 +207,11 @@ int main(int argc, char *argv[]) {
 	chunk *chunk_collection = NULL,*local_chunks = NULL;
 	int *chunk_sendcount,*chunk_dspls;
 	int local_chunk_count;
-	wordsmap map = NULL;
+	wordsmap map = NULL, global_map = NULL;
+	woccurrence *local_occurrences = NULL, test_occurrence;
+	woccurrence **global_occurrences = NULL;
+	int *gobal_occurrences_sizes = NULL, *occurrences_dspls = NULL, occ_sum, local_occurrences_size;	
+
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -336,12 +335,57 @@ int main(int argc, char *argv[]) {
 	}
 	
 	map = count_words_in_chunks(local_chunks,local_chunk_count,map);
+	//print_map(map);
+	local_occurrences_size = get_woccurrences_size(map);
+	//printf("DBG: local_occurrences_size=%d\n",local_occurrences_size);
+	local_occurrences = get_word_occurrences(map);
 	
-	//gather dei dizionari
+	
+	if(my_rank == MASTER){
+		printf("DBG: MASTER: Starting reduce operation\n");
+		global_occurrences = calloc(nofproc,sizeof(woccurrence*));	
+		gobal_occurrences_sizes = calloc(nofproc,sizeof(int));					
+		if(global_occurrences == NULL || gobal_occurrences_sizes == NULL){
+			printf("MEMORY ERROR!\n");
+			exit(EXIT_FAILURE);
+		}		
+	}
+	printf("HERE COMES GATHER\n");
+	MPI_Gather(&local_occurrences_size,1,MPI_INT,gobal_occurrences_sizes,1,MPI_INT,MASTER,MPI_COMM_WORLD);	
+	if(my_rank == MASTER){
+		occ_sum = 0;
+		for(int i = 0;i<nofproc;i++){
+			global_occurrences[i] = calloc(gobal_occurrences_sizes[i],sizeof(woccurrence));
+			if(global_occurrences[i] == NULL){
+				printf("MEMORY ERROR!\n");
+				exit(EXIT_FAILURE);
+			}
+			for(int j = 0;j<gobal_occurrences_sizes[i];j++){
+				global_occurrences[i][j] = new_woccurence("");
+			}					
+		}
+		printf("MASTER PREPARING TO RECIEVE\n");
+		test_occurrence = new_woccurence("");
+		for(int i = 1;i<nofproc;i++){
+			for(int j = 0;j<gobal_occurrences_sizes[i];j++){
+				MPI_Recv(global_occurrences[i][j],1,mpi_woccurence_type,MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);										
+			}			
+		}	
+		for(int j = 0;j<gobal_occurrences_sizes[0];j++){
+			global_occurrences[0][j] = local_occurrences[j];
+			
+		}	
 
-	//---master
-	//fondi i dizionari
+		global_map = merge_wordoccuurences(global_occurrences,gobal_occurrences_sizes,nofproc);
+		print_map(global_map);
 
+	} else {
+		//printf("Preparing to send a %d long array\n",local_occurrences_size);
+		for(int i = 0;i<local_occurrences_size;i++){
+			MPI_Send(local_occurrences[i],1,mpi_woccurence_type,MASTER,0,MPI_COMM_WORLD);
+		}		
+	}
+	
 
 	MPI_Finalize();
 }

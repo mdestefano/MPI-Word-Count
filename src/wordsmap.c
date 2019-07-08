@@ -2,8 +2,8 @@
 #include <stdio.h>
 
 typedef struct wordsmap_s {
-    size_t size;
-    size_t real_size;
+    int size;
+    int real_size;
     woccurrence* occurrences;
 }wordsmap_s;
 
@@ -17,44 +17,45 @@ wordsmap new_wordsmap(){
 
 size_t hash(const char *str) {
     size_t hash = 5381;
-    int c;
+    int c,i = 0;
 
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-
+    while ((c = str[i])) {
+        hash =  hash * 33 + c;/*((hash << 5) + hash) + c;  hash * 33 + c */
+        i++;
+    }
     return hash;
 }
 
-void add_word(wordsmap map,char word[]){
-    printf("DBG: MAP: adding %s\n",word);
+void add_word(wordsmap map,const char word[]){
+    //printf("DBG: MAP: adding %s\n",word);
     bool found = false, empty_bucket = false;
-    size_t index = 0,counter = 0;    
+    int index = 0,counter = 0;    
     woccurrence cur_occurence;
 
     while(!found && !empty_bucket && index<map->size){
         index = (hash(word)+counter)%map->size;
-        printf("DBG: MAP: hash(%s) + %zu mod %zu = %zu\n",word,counter,map->size,index);
+        //printf("DBG: MAP: hash(%s) + %zu mod %zu = %zu\n",word,counter,map->size,index);
         cur_occurence = map->occurrences[index];
         empty_bucket = cur_occurence == NULL;
         if(!empty_bucket){
-            found = (strcat(word,get_word(cur_occurence)) == 0);
+            found = (strcmp(word,get_word(cur_occurence)) == 0);
         } 
         counter += 1;
     }
 
     if(empty_bucket){
-        printf("DBG: MAP: empty bucket at %zu\n",index);
+        //printf("DBG: MAP: empty bucket at %zu\n",index);
         map->occurrences[index] = new_woccurence(word);
-        printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
+        //printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
         map->real_size += 1;
     } else if (found){        
         add_occurrence(map->occurrences[index]);
-        printf("DBG: MAP: occurence at %zu incremented\n",index);
-        printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
+        //printf("DBG: MAP: occurence at %zu incremented\n",index);
+        //printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
     } else {
         map->size *= 2;
         map->occurrences = realloc(map->occurrences,map->size);
-        printf("DBG: MAP: map resized\n");
+        //printf("DBG: MAP: map resized\n");
     }
     
 
@@ -79,7 +80,15 @@ void add_word(wordsmap map,char word[]){
 }
 
 woccurrence* get_word_occurrences(wordsmap map){
-    return map->occurrences;
+    int counter = 0;
+    woccurrence *real_occurrences = calloc(map->real_size,sizeof(woccurrence));
+    for(int i =0; i<map->size;i++){
+        if(map->occurrences[i] != NULL){
+            real_occurrences[counter] = map->occurrences[i];
+            counter++;
+        }
+    }
+    return real_occurrences;
 }
 
 int get_woccurrences_size(wordsmap map){
@@ -87,10 +96,26 @@ int get_woccurrences_size(wordsmap map){
 }
 
 void print_map(wordsmap map){    
-    printf("MAP: size %zu, real_ size %zu \n",map->size,map->real_size);
-    for(size_t i =0; i<map->size;i++){
+    printf("MAP: size %d, real_ size %d \n",map->size,map->real_size);
+    for(int i =0; i<map->size;i++){
         if(map->occurrences[i] != NULL){
-            printf("MAP: (%s,%zu)\n",get_word(map->occurrences[i]),get_occurrences(map->occurrences[i]));
+            print_occurrence(map->occurrences[i]);
         }
     }    
+}
+
+wordsmap merge_wordoccuurences(woccurrence **occurrences_collection,int *occurrences_count,int nofcollections){
+    wordsmap map = new_wordsmap();
+    int remaining_occ;
+    for(int i = 0;i<nofcollections;i++){
+        for(int j = 0; j<occurrences_count[i];j++){
+            remaining_occ = get_occurrences(occurrences_collection[i][j]);
+            while(remaining_occ>0){
+                printf("DBG: MAP: merging %s\n",get_word(occurrences_collection[i][j]));
+                add_word(map,get_word(occurrences_collection[i][j]));
+                remaining_occ--;
+            }
+        }
+    }
+    return map;
 }

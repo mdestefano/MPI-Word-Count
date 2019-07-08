@@ -1,13 +1,14 @@
 #include <string.h>
+#include <stdio.h>
 #include "../include/woccurence.h"
 
 typedef struct woccurrence_c{
     char word[WORD_SIZE];
-    size_t count;
+    int count;
 }woccurence_c;
 
 void initialize_woccurence_type(){
-    MPI_Datatype types[2] = {MPI_CHAR, MPI_UNSIGNED};
+    MPI_Datatype types[2] = {MPI_CHAR, MPI_INT};
   int blocklengths[2] = {WORD_SIZE,1};
   MPI_Aint offsets[2] = {
         offsetof(woccurence_c, word),
@@ -34,15 +35,19 @@ void add_occurrence(woccurrence wordocc){
   add_n_occurrence(wordocc,1);
 }
 
-void add_n_occurrence(woccurrence wordocc, size_t occurrences){
+void add_n_occurrence(woccurrence wordocc, int occurrences){
   wordocc->count += occurrences;
 }
 
-size_t get_occurrences(woccurrence wordocc){
+int get_occurrences(woccurrence wordocc){
   return wordocc->count;
 }
 
 char* get_word(woccurrence wordocc){
   return wordocc->word;
+}
+
+void print_occurrence(woccurrence occ){
+  printf("(%s,%d)\n",occ->word,occ->count);
 }
 
