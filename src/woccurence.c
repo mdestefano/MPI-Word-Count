@@ -25,7 +25,7 @@ woccurrence new_woccurence(const char *word){
   }
 
   strcpy(woc->word,word);
-  woc->count = 0;
+  woc->count = 1;
 
   return woc;
 }

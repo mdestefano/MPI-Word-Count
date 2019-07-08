@@ -150,12 +150,13 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 
 }
 
-wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap map){
+wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map){
 	FILE* curr_file;
 	size_t curr_line_index,len;
 	ssize_t linesize;
-	map = new_wordsmap();
+	wordsmap map = new_wordsmap();
 	char* curr_line = NULL;
+	char* fragment = NULL;
 
 	for(int curr_chunk = 0; curr_chunk<nofchunks;curr_chunk++){
 		print_chunk(chunks[curr_chunk]);
@@ -179,16 +180,25 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap map){
 				curr_line[strlen(curr_line)-1] = '\0';
 				printf("DBG: curr_line_index = %zu Processing line: %s\n",curr_line_index,curr_line);
 				
+				fragment = strtok (curr_line," ,.-");
+  				while (fragment != NULL) {
+					printf("DBG: fragment %s\n",fragment);  
+    				add_word(map,fragment);					
+    				fragment = strtok (NULL, " ,.-");
+  				}
+
+
 				free(curr_line);
 				curr_line = NULL;
+				
 			}
 			curr_line_index++;
 		} while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1);
-
+		print_map(map);
 	}
 
-
-	return map;
+	output_map = map;
+	return output_map;
 }
 
 
