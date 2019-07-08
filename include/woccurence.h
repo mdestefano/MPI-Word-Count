@@ -15,3 +15,5 @@ void add_occurrence(woccurrence wordocc);
 void add_n_occurrence(woccurrence wordocc, size_t occurrences);
 
 size_t get_occurrences(woccurrence wordocc);
+
+char* get_word(woccurrence wordocc);

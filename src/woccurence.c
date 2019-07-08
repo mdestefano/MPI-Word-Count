@@ -42,4 +42,7 @@ size_t get_occurrences(woccurrence wordocc){
   return wordocc->count;
 }
 
+char* get_word(woccurrence wordocc){
+  return wordocc->word;
+}
 

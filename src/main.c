@@ -3,6 +3,7 @@
 #include <string.h>
 #include "chunk.h"
 #include "woccurence.h"
+#include "wordsmap.h"
 
 #define MASTER 0
 
@@ -149,6 +150,48 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 
 }
 
+wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap map){
+	FILE* curr_file;
+	size_t curr_line_index,len;
+	ssize_t linesize;
+	map = new_wordsmap();
+	char* curr_line = NULL;
+
+	for(int curr_chunk = 0; curr_chunk<nofchunks;curr_chunk++){
+		print_chunk(chunks[curr_chunk]);
+		curr_file = fopen(get_chunk_filename(chunks[curr_chunk]),"r");
+		if(curr_file == NULL){
+			printf("Error opening files\n");
+			exit(EXIT_FAILURE);
+		}
+
+		curr_line_index = 0;
+		while(curr_line_index < get_chunk_start_index(chunks[curr_chunk])){
+			getline(&curr_line,&len,curr_file);
+			curr_line_index++;		
+			free(curr_line);
+			curr_line = NULL;	
+		}
+
+		do{
+			linesize = getline(&curr_line,&len,curr_file);
+			if(linesize != -1){
+				curr_line[strlen(curr_line)-1] = '\0';
+				printf("DBG: curr_line_index = %zu Processing line: %s\n",curr_line_index,curr_line);
+				
+				free(curr_line);
+				curr_line = NULL;
+			}
+			curr_line_index++;
+		} while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1);
+
+	}
+
+
+	return map;
+}
+
+
 int main(int argc, char *argv[]) {
 	
 	int my_rank,nofproc, local_file_count;
@@ -159,6 +202,7 @@ int main(int argc, char *argv[]) {
 	chunk *chunk_collection = NULL,*local_chunks = NULL;
 	int *chunk_sendcount,*chunk_dspls;
 	int local_chunk_count;
+	wordsmap map = NULL;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -216,13 +260,13 @@ int main(int argc, char *argv[]) {
 
 		for(int i = 0;i<local_file_count;i++){
 			local_filenames[i] = strcpy(local_filenames[i],filenames[i]);
-			printf("Master keeps %s\n",local_filenames[i]);
+			printf("DBG: Master keeps %s\n",local_filenames[i]);
 		}
 
 	} else {
 		for(int i= 0; i<local_file_count;i++){
 			MPI_Recv(local_filenames[i],FILENAME_SIZE,MPI_CHAR,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			printf("process %d recieved %s\n",my_rank,local_filenames[i]);
+			printf("DBG: Process %d recieved %s\n",my_rank,local_filenames[i]);
 		}
 	} 
 
@@ -232,12 +276,6 @@ int main(int argc, char *argv[]) {
 	}
 	count_file_lines(local_filenames,local_file_lines_count,local_file_count);
 	MPI_Gatherv(local_file_lines_count,local_file_count,MPI_INT,global_file_lines_count,file_sendcounts,file_dspls,MPI_INT,MASTER,MPI_COMM_WORLD);
-
-	if(my_rank == MASTER){
-		for(size_t i = 0;i<n_of_files;i++){
-			printf("MASTER: DBG: file %s has %d lines\n",filenames[i],global_file_lines_count[i]);
-		}
-	}
 
 	if(my_rank == MASTER){
 		chunk_sendcount = malloc(nofproc*sizeof(int));
@@ -251,14 +289,10 @@ int main(int argc, char *argv[]) {
 			chunk_dspls[i] = 0;
 		}
 		chunk_collection = prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls);		
-		for(int i = 0; i<nofproc;i++){
-			printf("DBG send_count[%d]=%d, displs[%d]=%d\n",i,chunk_sendcount[i],i,chunk_dspls[i]);
-		}
 	}
 
 	//comune
-	MPI_Scatter(chunk_sendcount,1,MPI_INT,&local_chunk_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);
-	printf("DBG: Process %d should recieve %d chunks\n",my_rank,local_chunk_count);
+	MPI_Scatter(chunk_sendcount,1,MPI_INT,&local_chunk_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);	
 	local_chunks = malloc(local_chunk_count*sizeof(chunk));
 	
 	if(local_chunks == NULL){
@@ -290,11 +324,8 @@ int main(int argc, char *argv[]) {
 			MPI_Recv(local_chunks[i],1,mpi_text_file_chunk,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);			
 		}
 	}
-
-	for(int i = 0;i<local_chunk_count;i++){
-		printf("DBG: proc %d recieved ",my_rank);
-		print_chunk(local_chunks[i]); 	
-	}
+	
+	map = count_words_in_chunks(local_chunks,local_chunk_count,map);
 	
 	//gather dei dizionari
 
