@@ -75,8 +75,11 @@ void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls){
 	int total_lines = 0, lines_per_processor, reminder;
 	int lines_left, current_file_lines_left;
-	size_t file_index = 0;
+	size_t file_index = 0, old_file_index = 0;
+	size_t chunks_size = nofproc, actual_chunks_size = 0;
 	int line_index = 0;
+	size_t start_index = 0,end_index = 0;
+	int sum = 0;
 
 	for(size_t i = 0;i<n_of_files;i++){
 		total_lines += file_lines_count[i];
@@ -86,7 +89,7 @@ void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,i
 	reminder = total_lines%nofproc;
 	current_file_lines_left = file_lines_count[file_index];
 
-	//output_chunks = malloc(sizeof(chunk)*(*nofchunks));
+	output_chunks = malloc(sizeof(chunk)*chunks_size);
 
 	for(int current_proc = 0;current_proc<nofproc;current_proc++){
 		lines_left = lines_per_processor;
@@ -99,34 +102,48 @@ void prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,i
 
 		while (lines_left>0){			
 			
+			old_file_index = file_index;
+
 			if(lines_left>=current_file_lines_left){
 				//crea nuovo chunk
-				printf("DBG: created new chunk in file %s from %d to %d for proc %d \n",filenames[file_index],line_index,file_lines_count[file_index] - 1,current_proc);
+				start_index = line_index;
+				end_index = file_lines_count[file_index] - 1;
+				
 				lines_left -= (file_lines_count[file_index] -line_index);
-				line_index = 0;
+				line_index = 0;				
 				file_index += 1;
-				current_file_lines_left = file_lines_count[file_index];
-				printf("DBG lines left %d\n",lines_left);
+				current_file_lines_left = file_lines_count[file_index];				
 			} else {
 				//crea nuovo chunk
-				printf("DBG: created new chunk in file %s from %d to %d for proc %d \n",filenames[file_index],line_index,line_index + lines_left-1,current_proc);
+				
+				start_index = line_index;
+				end_index = line_index + lines_left-1;				
 				line_index += lines_left;
 				current_file_lines_left -= lines_left;
 				lines_left = 0;
 			}
+
+			printf("DBG: created new chunk in file %s from %zu to %zu for proc %d \n",filenames[old_file_index],start_index,end_index,current_proc);
 			
 
-			/*if(actual_chunks_size>(*nofchunks)){
-				(*nofchunks) *= 2;
-				output_chunks = realloc(output_chunks,(*nofchunks)*sizeof(chunk));					
+			if(actual_chunks_size>chunks_size){
+				chunks_size *= 2;
+				output_chunks = realloc(output_chunks,chunks_size*sizeof(chunk));	
+				printf("DBG: chunk resize\n");				
 			}
 
-			output_chunks[actual_chunks_size] = new_chunk(filenames[file_index],)*/
+			output_chunks[actual_chunks_size] = new_chunk(filenames[old_file_index],start_index,end_index);
+			actual_chunks_size++;
+			chunk_sendcount[current_proc] += 1;
+			
 
-		
 		}
+		sum += chunk_sendcount[current_proc];
+		chunk_dspls[current_proc] = sum;
 		
 	}
+
+	(*nofchunks) = actual_chunks_size;
 
 }
 
@@ -134,9 +151,11 @@ int main(int argc, char *argv[]) {
 	
 	int my_rank,nofproc, local_file_count;
 	int *file_sendcounts, *file_dspls,*local_file_lines_count = NULL, *global_file_lines_count;
-	size_t n_of_files;
+	size_t n_of_files,nofchunks;
 	char **filenames = NULL, **local_filenames;
 	int send_index;
+	chunk *chunk_collection = NULL;
+	int *chunk_sendcount,*chunk_dspls;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -218,7 +237,17 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(my_rank == MASTER){
-		prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,NULL,NULL,NULL,NULL);
+		chunk_sendcount = malloc(nofproc*sizeof(int));
+		chunk_dspls = malloc(nofproc*sizeof(int));
+		if(chunk_sendcount == NULL || chunk_dspls == NULL){
+			printf("Memory Error!\n");
+			exit(EXIT_FAILURE);
+		}
+		for(int i = 0;i<nofproc;i++){
+			chunk_sendcount[i] = 0;
+			chunk_dspls[i] = 0;
+		}
+		prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls);
 	}
 	//prepara i chunk
 

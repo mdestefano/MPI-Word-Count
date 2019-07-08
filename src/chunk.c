@@ -65,3 +65,7 @@ bool chunk_equals(chunk c1,chunk c2){
 
     return true;
 }
+
+void print_chunk(chunk c1){
+    printf("CHUNK: filename=%s, start_index=%zu, end_index=%zu\n",c1->filename,c1->start_index,c1->end_index);
+}
