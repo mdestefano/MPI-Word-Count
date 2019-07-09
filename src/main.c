@@ -12,12 +12,12 @@ void init_custom_types(){
 	initialize_woccurence_type();
 }
 
-char** detect_files(char **filenames, size_t *n){
+char** detect_files(char **filenames, size_t *n,char *index_filename){
 	size_t current_list_size = 16;
 	size_t i = 0, len = 0;
 	ssize_t line_size;
 
-	FILE* index_file = fopen("input/index.txt","r");
+	FILE* index_file = fopen(index_filename,"r");
 	filenames = calloc(current_list_size,sizeof(char*));
 	if(filenames == NULL){
 		printf("Memory Error !");
@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
 
 	if(my_rank == MASTER){	
 		start_time = MPI_Wtime();
-		filenames = detect_files(filenames,&n_of_files);		
+		filenames = detect_files(filenames,&n_of_files,index_filename);		
 		file_sendcounts = malloc(nofproc*sizeof(int));
 		file_dspls = malloc(nofproc*sizeof(int));
 
