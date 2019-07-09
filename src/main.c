@@ -27,7 +27,7 @@ char** detect_files(char **filenames, size_t *n,char *index_filename){
 		if(filenames[i][line_size-1] == '\n'){
 			filenames[i][line_size-1] = '\0';
 		}
-		printf("DBG: filename: %s\n",filenames[i]);
+		//printf("DBG: filename: %s\n",filenames[i]);
 		i++;		
 		if(i>=current_list_size){		
 			current_list_size = current_list_size *2;
@@ -59,7 +59,7 @@ void divide_files(size_t n_of_files,int nofproc,int *sendcounts, int *displs){
 }
 
 void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
-	printf("DBG: COUNTING LINES\n");
+	//printf("DBG: COUNTING LINES\n");
 	char* line = NULL;
 	size_t len;
 	for(int i = 0;i<n_of_files;i++){		
@@ -73,7 +73,7 @@ void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 			free(line);
 			line = NULL;
 		}		
-		printf("noflines %d\n",files_line_count[i]);
+		//printf("noflines %d\n",files_line_count[i]);
 		fclose(current_file);
 	}
 }
@@ -106,7 +106,7 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 			lines_left += 1;
 			reminder--;
 		}
-		printf("DBG: proc %d should have %d lines\n",current_proc,lines_left);
+		//printf("DBG: proc %d should have %d lines\n",current_proc,lines_left);
 
 		while (lines_left>0){			
 			
@@ -131,7 +131,7 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 				lines_left = 0;
 			}
 
-			printf("DBG: created new chunk in file %s from %zu to %zu for proc %d \n",filenames[old_file_index],start_index,end_index,current_proc);
+			//printf("DBG: created new chunk in file %s from %zu to %zu for proc %d \n",filenames[old_file_index],start_index,end_index,current_proc);
 			
 
 			if(actual_chunks_size>chunks_size){
@@ -159,15 +159,16 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 
 wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map){
 	FILE* curr_file;
-	size_t curr_line_index,len = 512;
+	size_t curr_line_index,len = 2048;
 	ssize_t linesize;
 	wordsmap map = new_wordsmap();
 	char* curr_line = calloc(len,sizeof(char));
 	char* single_fragment;	
+	char* svptr;
 	
 
 	for(int curr_chunk = 0; curr_chunk<nofchunks;curr_chunk++){
-		print_chunk(chunks[curr_chunk]);
+		//print_chunk(chunks[curr_chunk]);
 		curr_file = fopen(get_chunk_filename(chunks[curr_chunk]),"r");
 		if(curr_file == NULL){
 			printf("Error opening files\n");
@@ -177,9 +178,7 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 		curr_line_index = 0;
 		while(curr_line_index < get_chunk_start_index(chunks[curr_chunk])){
 			getline(&curr_line,&len,curr_file);
-			curr_line_index++;
-			/*free(curr_line);
-			curr_line = NULL;*/
+			curr_line_index++;			
 		}
 
 		while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1){											
@@ -187,17 +186,23 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 			if(linesize != -1){
 				//curr_line[linesize] = '\0';
 				//printf("DBG: Current line: %s\n",curr_line);
-				while ((single_fragment = strsep(&curr_line," .,-\n")) != NULL && strlen(single_fragment) >0){
+				svptr = curr_line;
+				
+				while ((single_fragment = strtok_r(svptr," .,-'\n",&svptr))){
 					//printf("DBG: Fragment %s\n",single_fragment);
-					add_word(map,single_fragment);
+					if(strlen(single_fragment) >0){
+						add_word(map,single_fragment);
+					}
+					//strtok_r(NULL," .,-'",&svptr);
 				}				
 			}
-			
+			/*free(curr_line);
+			curr_line = NULL;*/
 			curr_line_index++;			
 		} 		
 		fclose(curr_file);
 	}
-	printf("DBG: words counted successfully\n");
+	//printf("DBG: words counted successfully\n");
 	output_map = map;
 	return output_map;
 }
@@ -310,7 +315,7 @@ int main(int argc, char *argv[]) {
 			chunk_dspls[i] = 0;
 		}
 		chunk_collection = prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls,&total_lines);		
-		puts("DBG: CHUNKS CREATED");
+		//puts("DBG: CHUNKS CREATED");
 	}
 
 	//comune
@@ -325,7 +330,7 @@ int main(int argc, char *argv[]) {
 	for(int i = 0;i<local_chunk_count;i++){
 		local_chunks[i] = new_empty_chunk();		
 	}
-	puts("DBG: local chunks created");
+	//puts("DBG: local chunks created");
 
 	/* if chunk structure is changed not to be used as a pointer to structure,
 	 scatterv could be possible.*/
@@ -350,9 +355,10 @@ int main(int argc, char *argv[]) {
 	map = count_words_in_chunks(local_chunks,local_chunk_count,map);
 	//print_map(map);
 	local_occurrences_size = get_woccurrences_size(map);
-	//printf("DBG: local_occurrences_size=%d\n",local_occurrences_size);
+	//puts("DBG: MAP CREATED");
+	//printf("DBG: local_occurrences_size=%d\n",local_occurrences_size);	
 	local_occurrences = get_word_occurrences(map);
-	
+		
 	
 	if(my_rank == MASTER){
 		//printf("DBG: MASTER: Starting reduce operation\n");

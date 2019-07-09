@@ -9,7 +9,7 @@ typedef struct wordsmap_s {
 
 wordsmap new_wordsmap(){
     wordsmap map = calloc(1,sizeof(wordsmap_s*));
-    map->size = 64;
+    map->size = 256;
     map->real_size = 0;
     map->occurrences = calloc(map->size,sizeof(woccurrence));
     return map;
@@ -27,12 +27,27 @@ size_t hash(const char *str) {
 }
 
 void add_word(wordsmap map,const char word[]){
-    //printf("DBG: MAP: adding %s\n",word);
+    
     bool found = false, empty_bucket = false;
     int index = 0,counter = 0;    
     woccurrence cur_occurence;
+    woccurrence* buf;
 
-    while(!found && !empty_bucket && index<map->size){
+    if(map->real_size == map->size){        
+        printf("DBG: realloc map!\n");
+        printf("DBG: map_size = %d, map_realsize %d!\n",map->size,map->real_size);
+        map->size = map->size * 2;
+        
+        //map->occurrences = realloc(map->occurrences,map->size);
+        buf = calloc(map->size,sizeof(woccurrence));
+        for(int i=0;i<map->real_size;i++){
+            buf[i] = map->occurrences[i];
+        }
+        free(map->occurrences);
+        map->occurrences = buf;
+    }
+
+    while(!found && !empty_bucket){
         index = (hash(word)+counter)%map->size;
         //printf("DBG: MAP: hash(%s) + %zu mod %zu = %zu\n",word,counter,map->size,index);
         cur_occurence = map->occurrences[index];
@@ -52,11 +67,6 @@ void add_word(wordsmap map,const char word[]){
         add_occurrence(map->occurrences[index]);
         //printf("DBG: MAP: occurence at %zu incremented\n",index);
         //printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
-    } else {
-        printf("DBG: MAP: map resized\n");
-        map->size *= 2;
-        map->occurrences = realloc(map->occurrences,map->size);
-        
     }
     
 
