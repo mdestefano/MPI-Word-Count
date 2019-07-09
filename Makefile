@@ -22,7 +22,7 @@ clean:
 	-$(RM) $(BIN)/$(EXECUTABLE)
 
 run: all
-	mpirun -np $(NP) ./$(BIN)/$(EXECUTABLE) 
+	mpirun -np $(NP) ./$(BIN)/$(EXECUTABLE) input/index.txt
 
 $(BIN)/$(EXECUTABLE): $(SRC)/*
 	$(CC) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)

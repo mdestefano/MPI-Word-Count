@@ -13,21 +13,22 @@ void init_custom_types(){
 }
 
 char** detect_files(char **filenames, size_t *n){
-	size_t current_list_size = 2;
+	size_t current_list_size = 16;
 	size_t i = 0, len = 0;
+	ssize_t line_size;
 
 	FILE* index_file = fopen("input/index.txt","r");
-	filenames = malloc(current_list_size*sizeof(char*));
+	filenames = calloc(current_list_size,sizeof(char*));
 	if(filenames == NULL){
 		printf("Memory Error !");
 		exit(EXIT_FAILURE);
 	}
-	for(size_t i = 0;i<current_list_size;i++){
-		filenames[i] = NULL;
-	}
-	while (getline(&filenames[i],&len,index_file) != -1){
-		filenames[i][strlen(filenames[i])-1] = '\0';	
-		i++;
+	while ((line_size = getline(&filenames[i],&len,index_file)) != -1){
+		if(filenames[i][line_size-1] == '\n'){
+			filenames[i][line_size-1] = '\0';
+		}
+		printf("DBG: filename: %s\n",filenames[i]);
+		i++;		
 		if(i>=current_list_size){		
 			current_list_size = current_list_size *2;
 			filenames = realloc(filenames,current_list_size*sizeof(char*));
@@ -58,6 +59,7 @@ void divide_files(size_t n_of_files,int nofproc,int *sendcounts, int *displs){
 }
 
 void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
+	printf("DBG: COUNTING LINES\n");
 	char* line = NULL;
 	size_t len;
 	for(int i = 0;i<n_of_files;i++){		
@@ -67,13 +69,16 @@ void count_file_lines(char **filenames,int *files_line_count,int n_of_files){
 			exit(EXIT_FAILURE);
 		}
 		while (getline(&line,&len,current_file) != -1){
-			files_line_count[i] += 1;
+			files_line_count[i] += 1;			
+			free(line);
+			line = NULL;
 		}		
+		printf("noflines %d\n",files_line_count[i]);
 		fclose(current_file);
 	}
 }
 
-chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls){
+chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files,int nofproc,chunk *output_chunks, size_t *nofchunks, int *chunk_sendcount, int* chunk_dspls,int *output_total_lines){
 	int total_lines = 0, lines_per_processor, reminder;
 	int lines_left, current_file_lines_left;
 	size_t file_index = 0, old_file_index = 0;
@@ -86,11 +91,13 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 		total_lines += file_lines_count[i];
 	}
 
+	*output_total_lines = total_lines;
+
 	lines_per_processor = total_lines/nofproc;
 	reminder = total_lines%nofproc;
 	current_file_lines_left = file_lines_count[file_index];
 
-	output_chunks = malloc(sizeof(chunk)*chunks_size);
+	output_chunks = calloc(chunks_size,sizeof(chunk));
 
 	for(int current_proc = 0;current_proc<nofproc;current_proc++){
 		lines_left = lines_per_processor;
@@ -130,7 +137,7 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 			if(actual_chunks_size>chunks_size){
 				chunks_size *= 2;
 				output_chunks = realloc(output_chunks,chunks_size*sizeof(chunk));	
-				printf("DBG: chunk resize\n");				
+				//printf("DBG: chunk resize\n");				
 			}
 
 			output_chunks[actual_chunks_size] = new_chunk(filenames[old_file_index],start_index,end_index);
@@ -152,10 +159,10 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, size_t n_of_files
 
 wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map){
 	FILE* curr_file;
-	size_t curr_line_index,len;
+	size_t curr_line_index,len = 512;
 	ssize_t linesize;
 	wordsmap map = new_wordsmap();
-	char* curr_line = NULL;
+	char* curr_line = calloc(len,sizeof(char));
 	char* single_fragment;	
 	
 
@@ -171,8 +178,8 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 		while(curr_line_index < get_chunk_start_index(chunks[curr_chunk])){
 			getline(&curr_line,&len,curr_file);
 			curr_line_index++;
-			free(curr_line);
-			curr_line = NULL;
+			/*free(curr_line);
+			curr_line = NULL;*/
 		}
 
 		while(curr_line_index <= get_chunk_end_index(chunks[curr_chunk]) && linesize != -1){											
@@ -183,15 +190,14 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 				while ((single_fragment = strsep(&curr_line," .,-\n")) != NULL && strlen(single_fragment) >0){
 					//printf("DBG: Fragment %s\n",single_fragment);
 					add_word(map,single_fragment);
-				}
-				free(curr_line);
-				curr_line = NULL;				
+				}				
 			}
 			
-			curr_line_index++;
+			curr_line_index++;			
 		} 		
+		fclose(curr_file);
 	}
-
+	printf("DBG: words counted successfully\n");
 	output_map = map;
 	return output_map;
 }
@@ -199,31 +205,37 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks,wordsmap output_map)
 
 int main(int argc, char *argv[]) {
 	
-	int my_rank,nofproc, local_file_count;
+	int my_rank,nofproc, local_file_count,total_lines = 0;
 	int *file_sendcounts, *file_dspls,*local_file_lines_count = NULL, *global_file_lines_count;
 	size_t n_of_files,nofchunks;
-	char **filenames = NULL, **local_filenames;
+	char **filenames = NULL, **local_filenames, index_filename[FILENAME_SIZE];
 	int send_index;
 	chunk *chunk_collection = NULL,*local_chunks = NULL;
 	int *chunk_sendcount,*chunk_dspls;
 	int local_chunk_count;
 	wordsmap map = NULL, global_map = NULL;
-	woccurrence *local_occurrences = NULL, test_occurrence;
+	woccurrence *local_occurrences = NULL;
 	woccurrence **global_occurrences = NULL;
-	int *gobal_occurrences_sizes = NULL, *occurrences_dspls = NULL, occ_sum, local_occurrences_size;	
+	int *gobal_occurrences_sizes = NULL, local_occurrences_size;	
+	double start_time, end_time;
+	FILE* stats_file;
 
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
 	MPI_Comm_size(MPI_COMM_WORLD,&nofproc);
-	init_custom_types();
+	init_custom_types();	
 	
-	
+	if(argc != 2){
+		printf("Incorrect number of parameters!\n");
+		exit(EXIT_FAILURE);
+	}
 
-	if(my_rank == MASTER){
-		
-		filenames = detect_files(filenames,&n_of_files);
-		puts(filenames[0]);	
+	strcpy(index_filename,argv[1]);
+
+	if(my_rank == MASTER){	
+		start_time = MPI_Wtime();
+		filenames = detect_files(filenames,&n_of_files);		
 		file_sendcounts = malloc(nofproc*sizeof(int));
 		file_dspls = malloc(nofproc*sizeof(int));
 
@@ -241,9 +253,9 @@ int main(int argc, char *argv[]) {
 	}
 	
 	//--comune
-	puts("DBG: COMUNICATION STARTING");
+	//puts("DBG: COMUNICATION STARTING");
 	MPI_Scatter(file_sendcounts,1,MPI_INT,&local_file_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);
-	printf("DBG: proc. %d recv_count %d\n",my_rank,local_file_count);
+	//printf("DBG: proc. %d recv_count %d\n",my_rank,local_file_count);
 
 	local_filenames = malloc(local_file_count*sizeof(char*));	
 	if(local_filenames == NULL){
@@ -257,11 +269,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 		
-	puts("DBG: FILENAMES ARE ARRIVING!");
+	//puts("DBG: FILENAMES ARE ARRIVING!");
 	if(my_rank == MASTER){
 		for(int reciever = 1; reciever <nofproc;reciever++){
 			for(int i = 0;i<file_sendcounts[reciever];i++){
-				printf("Master sending %s\n",filenames[send_index]);
+				//printf("Master sending %s\n",filenames[send_index]);
 				MPI_Send(filenames[send_index],strlen(filenames[send_index])+1,MPI_CHAR,reciever,MASTER,MPI_COMM_WORLD);
 				send_index++;
 			}
@@ -269,13 +281,13 @@ int main(int argc, char *argv[]) {
 
 		for(int i = 0;i<local_file_count;i++){
 			local_filenames[i] = strcpy(local_filenames[i],filenames[i]);
-			printf("DBG: Master keeps %s\n",local_filenames[i]);
+			//printf("DBG: Master keeps %s\n",local_filenames[i]);
 		}
 
 	} else {
 		for(int i= 0; i<local_file_count;i++){
 			MPI_Recv(local_filenames[i],FILENAME_SIZE,MPI_CHAR,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			printf("DBG: Process %d recieved %s\n",my_rank,local_filenames[i]);
+			//printf("DBG: Process %d recieved %s\n",my_rank,local_filenames[i]);
 		}
 	} 
 
@@ -297,7 +309,8 @@ int main(int argc, char *argv[]) {
 			chunk_sendcount[i] = 0;
 			chunk_dspls[i] = 0;
 		}
-		chunk_collection = prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls);		
+		chunk_collection = prepare_chunks(filenames,global_file_lines_count,n_of_files,nofproc,chunk_collection,&nofchunks,chunk_sendcount,chunk_dspls,&total_lines);		
+		puts("DBG: CHUNKS CREATED");
 	}
 
 	//comune
@@ -312,8 +325,9 @@ int main(int argc, char *argv[]) {
 	for(int i = 0;i<local_chunk_count;i++){
 		local_chunks[i] = new_empty_chunk();		
 	}
+	puts("DBG: local chunks created");
 
-	/* if chunk structure is change not to be used as a pointer to structure,
+	/* if chunk structure is changed not to be used as a pointer to structure,
 	 scatterv could be possible.*/
 	if(my_rank == MASTER){
 		send_index = chunk_sendcount[0];
@@ -332,8 +346,7 @@ int main(int argc, char *argv[]) {
 		for(int i= 0; i<local_chunk_count;i++){
 			MPI_Recv(local_chunks[i],1,mpi_text_file_chunk,MASTER,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);			
 		}
-	}
-	
+	}	
 	map = count_words_in_chunks(local_chunks,local_chunk_count,map);
 	//print_map(map);
 	local_occurrences_size = get_woccurrences_size(map);
@@ -342,7 +355,7 @@ int main(int argc, char *argv[]) {
 	
 	
 	if(my_rank == MASTER){
-		printf("DBG: MASTER: Starting reduce operation\n");
+		//printf("DBG: MASTER: Starting reduce operation\n");
 		global_occurrences = calloc(nofproc,sizeof(woccurrence*));	
 		gobal_occurrences_sizes = calloc(nofproc,sizeof(int));					
 		if(global_occurrences == NULL || gobal_occurrences_sizes == NULL){
@@ -350,10 +363,8 @@ int main(int argc, char *argv[]) {
 			exit(EXIT_FAILURE);
 		}		
 	}
-	printf("HERE COMES GATHER\n");
 	MPI_Gather(&local_occurrences_size,1,MPI_INT,gobal_occurrences_sizes,1,MPI_INT,MASTER,MPI_COMM_WORLD);	
-	if(my_rank == MASTER){
-		occ_sum = 0;
+	if(my_rank == MASTER){		
 		for(int i = 0;i<nofproc;i++){
 			global_occurrences[i] = calloc(gobal_occurrences_sizes[i],sizeof(woccurrence));
 			if(global_occurrences[i] == NULL){
@@ -364,8 +375,7 @@ int main(int argc, char *argv[]) {
 				global_occurrences[i][j] = new_woccurence("");
 			}					
 		}
-		printf("MASTER PREPARING TO RECIEVE\n");
-		test_occurrence = new_woccurence("");
+		// TODO: improve performances with better data structures
 		for(int i = 1;i<nofproc;i++){
 			for(int j = 0;j<gobal_occurrences_sizes[i];j++){
 				MPI_Recv(global_occurrences[i][j],1,mpi_woccurence_type,MPI_ANY_SOURCE,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);										
@@ -377,10 +387,17 @@ int main(int argc, char *argv[]) {
 		}	
 
 		global_map = merge_wordoccuurences(global_occurrences,gobal_occurrences_sizes,nofproc);
+		end_time = MPI_Wtime();
 		print_map(global_map);
-
-	} else {
-		//printf("Preparing to send a %d long array\n",local_occurrences_size);
+		printf("Job took %lf seconds with %d processes on %d lines\n",end_time-start_time,nofproc,total_lines);
+		stats_file = fopen("output/stats.csv","a");
+		if(stats_file == NULL){
+			printf("FILE ERROR !\n");
+		} else{
+			fprintf(stats_file,"%d,%d,%lf\n",total_lines,nofproc,end_time-start_time);
+			fclose(stats_file);
+		}
+	} else {		
 		for(int i = 0;i<local_occurrences_size;i++){
 			MPI_Send(local_occurrences[i],1,mpi_woccurence_type,MASTER,0,MPI_COMM_WORLD);
 		}		

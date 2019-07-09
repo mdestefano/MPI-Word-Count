@@ -53,9 +53,10 @@ void add_word(wordsmap map,const char word[]){
         //printf("DBG: MAP: occurence at %zu incremented\n",index);
         //printf("DBG: OCCURRENCE (%s,%zu)\n",get_word(map->occurrences[index]),get_occurrences(map->occurrences[index]));
     } else {
+        printf("DBG: MAP: map resized\n");
         map->size *= 2;
         map->occurrences = realloc(map->occurrences,map->size);
-        //printf("DBG: MAP: map resized\n");
+        
     }
     
 
@@ -110,8 +111,7 @@ wordsmap merge_wordoccuurences(woccurrence **occurrences_collection,int *occurre
     for(int i = 0;i<nofcollections;i++){
         for(int j = 0; j<occurrences_count[i];j++){
             remaining_occ = get_occurrences(occurrences_collection[i][j]);
-            while(remaining_occ>0){
-                printf("DBG: MAP: merging %s\n",get_word(occurrences_collection[i][j]));
+            while(remaining_occ>0){               
                 add_word(map,get_word(occurrences_collection[i][j]));
                 remaining_occ--;
             }
