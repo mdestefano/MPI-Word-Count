@@ -2,7 +2,7 @@
 
 
 void initialize_chunk_type(){
-  MPI_Datatype types[3] = {MPI_CHAR, MPI_UNSIGNED, MPI_UNSIGNED};
+  MPI_Datatype types[3] = {MPI_CHAR, MPI_INT, MPI_INT};
   int blocklengths[3] = {FILENAME_SIZE,1,1};
   MPI_Aint offsets[3] = {
         offsetof(chunk, filename),
@@ -14,7 +14,7 @@ void initialize_chunk_type(){
   MPI_Type_commit(&mpi_text_file_chunk);
 }
 
-chunk new_chunk(const char filename[], size_t start_index,size_t end_index){
+chunk new_chunk(const char filename[], int start_index, int end_index){
     chunk a_chunk;
     a_chunk.start_index=start_index;
     a_chunk.end_index=end_index;
@@ -39,5 +39,5 @@ bool chunk_equals(chunk c1,chunk c2){
 }
 
 void print_chunk(chunk c1){
-    printf("CHUNK: filename=%s, start_index=%zu, end_index=%zu\n",c1.filename,c1.start_index,c1.end_index);
+    printf("CHUNK: filename=%s, start_index=%d, end_index=%d\n",c1.filename,c1.start_index,c1.end_index);
 }
