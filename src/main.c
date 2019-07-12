@@ -136,8 +136,8 @@ int main(int argc, char *argv[]) {
 	char **filenames = NULL, **local_filenames = NULL, index_filename[FILENAME_SIZE];
 	int send_index;			
 	double start_time, end_time, time_elapsed;
-	chunk* chunks = NULL;
-	int *chunk_sendcount = NULL, *chunk_dspls = NULL, nofchunks;
+	chunk* chunks = NULL, *local_chunks = NULL;
+	int *chunk_sendcount = NULL, *chunk_dspls = NULL, nofchunks, local_nofchunks;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -203,12 +203,24 @@ int main(int argc, char *argv[]) {
 		chunk_sendcount = wc_init_int_array(chunk_sendcount,nofproc);
 		chunk_dspls = wc_init_int_array(chunk_dspls,nofproc);
 						
-		chunks = prepare_chunks(filenames,global_file_lines_count,nofproc,total_lines,&nofchunks,chunk_sendcount,chunk_dspls);			
-		for(int i = 0; i < nofchunks;i++){
+		chunks = prepare_chunks(filenames,global_file_lines_count,nofproc,total_lines,&nofchunks,chunk_sendcount,chunk_dspls);	
+		
+		for(int i = 0; i < nofchunks; i++){
 			print_chunk(chunks[i]);
 		}
 
 	}
+
+	MPI_Scatter(chunk_sendcount,1,MPI_INT,&local_nofchunks,1,MPI_INT,MASTER,MPI_COMM_WORLD);
+	
+	local_chunks = calloc(local_nofchunks,sizeof(chunk));
+	printf("DBG: process %d should recieve %d chunks\n",my_rank,local_nofchunks);
+	/*MPI_Scatterv(chunks,chunk_sendcount,chunk_dspls,mpi_text_file_chunk,local_chunks,local_nofchunks,mpi_text_file_chunk,MASTER,MPI_COMM_WORLD);
+
+	for(int i = 0;i<local_chunks;i++){
+		printf("DBG: process %d recieved ",my_rank);
+		print_chunk(local_chunks[i]);
+	}*/	
 
 	if(my_rank == MASTER){
 		end_time = MPI_Wtime();
