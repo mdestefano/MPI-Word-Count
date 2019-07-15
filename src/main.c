@@ -3,6 +3,7 @@
 #include <string.h>
 #include "wcutils.h"
 #include "chunk.h"
+#include "wordsmap.h"
 
 #define MASTER 0
 
@@ -101,9 +102,9 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, int nofproc, int 
 				line_index = 0;
 				file_index += 1;
 				lines_left -= (end_index - start_index + 1);
-			} else {
-				end_index = lines_left - 1;
-				line_index = lines_left;
+			} else {				
+				line_index += lines_left;
+				end_index = line_index - 1;
 				lines_left = 0;
 			}
 
@@ -118,7 +119,7 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, int nofproc, int 
 			chunk_sendcount[i] += 1;
 		}
 		chunk_dspls[i] = sum;
-		sum = chunk_sendcount[i];		
+		sum += chunk_sendcount[i];		
 	}
 
 	(*output_nofchunks) = chunk_index;
@@ -205,24 +206,54 @@ int main(int argc, char *argv[]) {
 						
 		chunks = prepare_chunks(filenames,global_file_lines_count,nofproc,total_lines,&nofchunks,chunk_sendcount,chunk_dspls);	
 		
+		#ifdef DEBUG
+
 		for(int i = 0; i < nofchunks; i++){
 			print_chunk(chunks[i]);
+			
 		}
+
+		for(int i = 0; i < nofproc; i++){
+			printf("chunk_sendcount[%d]=%d, chunk_dspls[%d]=%d\n",i,chunk_sendcount[i],i,chunk_dspls[i]);
+			
+		}
+		#endif // DEBUG	
 
 	}
 
 	MPI_Scatter(chunk_sendcount,1,MPI_INT,&local_nofchunks,1,MPI_INT,MASTER,MPI_COMM_WORLD);
 	
 	local_chunks = calloc(local_nofchunks,sizeof(chunk));
-	printf("DBG: process %d should recieve %d chunks\n",my_rank,local_nofchunks);
-	/*MPI_Scatterv(chunks,chunk_sendcount,chunk_dspls,mpi_text_file_chunk,local_chunks,local_nofchunks,mpi_text_file_chunk,MASTER,MPI_COMM_WORLD);
 
-	for(int i = 0;i<local_chunks;i++){
+	MPI_Scatterv(chunks,chunk_sendcount,chunk_dspls,mpi_text_file_chunk,local_chunks,local_nofchunks,mpi_text_file_chunk,MASTER,MPI_COMM_WORLD);
+
+
+	#ifdef DEBUG
+	
+	printf("DBG: process %d should recieve %d chunks\n",my_rank,local_nofchunks);
+	for(int i = 0;i<local_nofchunks;i++){
 		printf("DBG: process %d recieved ",my_rank);
 		print_chunk(local_chunks[i]);
-	}*/	
+	}
+	#endif // DEBUG
+
+	
 
 	if(my_rank == MASTER){
+		puts("MAP test");
+		wordsmap test = new_wordsmap();
+		add_word(&test,"cacca");		
+		add_word(&test,"pipi");		
+		add_word(&test,"cacca");		
+		add_word(&test,"termostato");		
+
+		int wocc_dim;
+		woccurrence *array = get_woccurrences_collection(test,&wocc_dim);
+		for(int i = 0;i<wocc_dim;i++){
+			print_occurrence(array[i]);
+		}
+						 
+
 		end_time = MPI_Wtime();
 		time_elapsed = end_time - start_time;
 		printf("Task took %lf seconds with %d processes on %d total lines\n",time_elapsed,nofproc,total_lines);

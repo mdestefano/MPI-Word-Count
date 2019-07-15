@@ -1,3 +1,2 @@
 input/a.txt
 input/b.txt
-input/lorem.txt
