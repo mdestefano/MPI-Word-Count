@@ -36,10 +36,18 @@ int* wc_init_int_array(int* array, int size){
 	return array;
 }
 
-int wc_compute_total_lines(int const *lines_array, int array_size){
+int wc_sum_array(int const *array, int array_size){
 	int sum = 0;
 	for(int i = 0; i<array_size;i++){
-		sum += lines_array[i];
+		sum += array[i];
 	}	
 	return sum;
+}
+
+char * string_to_lowercase(char *string){
+	char *p = calloc(strlen(string)+1,sizeof(char));
+	for(int i = 0; string[i]; i++){
+		p[i] = tolower(string[i]);
+	}
+	return p;
 }

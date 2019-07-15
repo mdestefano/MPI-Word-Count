@@ -12,10 +12,12 @@ typedef struct wordsmap {
 
 wordsmap new_wordsmap();
 
-void add_word(wordsmap *map,const char word[]);
+void add_n_word(wordsmap *map,char word[],int nofoccur);
+
+void add_word(wordsmap *map,char word[]);
 
 woccurrence* get_woccurrences_collection(wordsmap map,int *size);
 
 void print_map(wordsmap map);
 
-/*wordsmap merge_wordoccuurences(woccurrence **occurrences_collection,int *occurrences_count,int nofcollections);*/
+wordsmap merge_woccurrences(woccurrence *occurrences, int size);

@@ -9,7 +9,7 @@
 
 void init_custom_types(){
 	initialize_chunk_type();
-	//initialize_woccurence_type();
+	initialize_woccurence_type();
 }
 
 char** detect_files(char **filenames, int *n,char *index_filename){
@@ -127,7 +127,50 @@ chunk* prepare_chunks(char **filenames, int *file_lines_count, int nofproc, int 
 
 }
 
+void count_words_in_line(char *line,wordsmap *map){
+	char* token; 
+    char* rest = line; 
+  
+    while ((token = strtok_r(rest, " ,.-\n:!?()'", &rest))) {
+		add_word(map,string_to_lowercase(token));
+	}
+}
 
+wordsmap count_words_in_chunks(chunk* chunks, int nofchunks){
+	wordsmap output_map = new_wordsmap();
+	char *line;
+	size_t len = 512;
+	line = calloc(len,sizeof(char));
+	ssize_t line_size;
+	FILE *curr_file;
+	int line_index = 0;
+
+
+	for (int i = 0; i < nofchunks; i++)	{
+		curr_file = fopen(chunks[i].filename,"r");
+		if(curr_file == NULL){
+			printf("ERROR OPENING FILE!\n");
+			exit(EXIT_FAILURE);
+		}
+
+		while(line_index<chunks[i].start_index){
+			getline(&line,&len,curr_file);
+			line_index += 1;
+		}
+
+		while ((line_size = getline(&line,&len,curr_file)) != -1 && line_index <= chunks[i].end_index){
+	
+			if(line[line_size-1] == '\n'){
+				line[line_size-1] = '\0';
+			}
+			count_words_in_line(line,&output_map);
+			line_index += 1;
+		}
+		
+	}
+
+	return output_map;
+}
 
 int main(int argc, char *argv[]) {
 	
@@ -139,6 +182,9 @@ int main(int argc, char *argv[]) {
 	double start_time, end_time, time_elapsed;
 	chunk* chunks = NULL, *local_chunks = NULL;
 	int *chunk_sendcount = NULL, *chunk_dspls = NULL, nofchunks, local_nofchunks;
+	wordsmap global_map, local_map;
+	woccurrence *local_wocc_collection, *global_wocc_collection;
+	int local_woccurrences_size, global_woccurrences_size, *global_woccurrences_size_count = NULL, *global_woccurrenecs_dspls = NULL;
 
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
@@ -196,7 +242,7 @@ int main(int argc, char *argv[]) {
 
 	if(my_rank == MASTER){
 
-		total_lines = wc_compute_total_lines(global_file_lines_count,n_of_files);	
+		total_lines = wc_sum_array(global_file_lines_count,n_of_files);	
 		if(nofproc > total_lines){
 			printf("ERROR: Number of processes excedes total lines to count. Use less processes!\n");
 			MPI_Abort(MPI_COMM_WORLD,EXIT_FAILURE);
@@ -238,21 +284,52 @@ int main(int argc, char *argv[]) {
 	#endif // DEBUG
 
 	
+	local_map = count_words_in_chunks(local_chunks,local_nofchunks);
+	local_wocc_collection = get_woccurrences_collection(local_map,&local_woccurrences_size);
+	
 
 	if(my_rank == MASTER){
-		puts("MAP test");
-		wordsmap test = new_wordsmap();
-		add_word(&test,"cacca");		
-		add_word(&test,"pipi");		
-		add_word(&test,"cacca");		
-		add_word(&test,"termostato");		
+		global_woccurrences_size_count = wc_init_int_array(global_woccurrences_size_count,nofproc);
+		global_woccurrenecs_dspls = wc_init_int_array(global_woccurrenecs_dspls,nofproc);
+	}
 
-		int wocc_dim;
-		woccurrence *array = get_woccurrences_collection(test,&wocc_dim);
-		for(int i = 0;i<wocc_dim;i++){
-			print_occurrence(array[i]);
+	MPI_Gather(&local_woccurrences_size,1,MPI_INT,global_woccurrences_size_count,1,MPI_INT,MASTER,MPI_COMM_WORLD);
+	
+	if(my_rank == MASTER){
+
+		global_woccurrences_size = wc_sum_array(global_woccurrences_size_count,nofproc);			
+
+		for(int i = 0, sum = 0;i<nofproc;i++){
+			global_woccurrenecs_dspls[i] = sum;
+			sum += global_woccurrences_size_count[i]; 
 		}
-						 
+		
+		#ifdef DEBUG
+	
+		for(int i = 0; i < nofproc; i++){
+			printf("global_woccurrences_size_count[%d]=%d, global_woccurrenecs_dspls[%d]=%d\n",i,global_woccurrences_size_count[i],i,global_woccurrenecs_dspls[i]);
+			
+		}
+		printf("DBG: MASTER: Global map size=%d\n",global_woccurrences_size);
+		#endif // DEBUG	
+
+		global_wocc_collection = calloc(global_woccurrences_size,sizeof(woccurrence));
+	}
+
+	MPI_Gatherv(local_wocc_collection,local_woccurrences_size,mpi_woccurence_type,global_wocc_collection,global_woccurrences_size_count,global_woccurrenecs_dspls,mpi_woccurence_type,MASTER,MPI_COMM_WORLD);
+
+	if(my_rank == MASTER){
+		global_map = merge_woccurrences(global_wocc_collection,global_woccurrences_size);
+		print_map(global_map);
+
+		/*puts("TEST MAP MERGING");
+		woccurrence test_occ[2];
+		test_occ[0] = new_woccurence("prova");
+		add_n_occurrence(&test_occ[0],2);
+		test_occ[1] = new_woccurence("prova");
+
+		wordsmap test_map = merge_woccurrences(test_occ,2);
+		print_map(test_map);*/
 
 		end_time = MPI_Wtime();
 		time_elapsed = end_time - start_time;

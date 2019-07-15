@@ -44,7 +44,7 @@ static bool is_empty_bucket(wordsmap map, int index){
     return map.occurrences[index].count == EMPTY;
 }
 
-void add_word(wordsmap *map,const char word[]){    
+void add_n_word(wordsmap *map, char word[],int nofoccur){    
     bool found = false, empty_bucket = false;
     int index = 0,counter = 0;    
     woccurrence cur_occurence;
@@ -68,11 +68,16 @@ void add_word(wordsmap *map,const char word[]){
 
     if(empty_bucket){
         //printf("DBG: MAP: empty bucket at %d\n",index);
-        map->occurrences[index] = new_woccurence(word);        
+        map->occurrences[index] = new_woccurence(word);  
+        add_n_occurrence(&map->occurrences[index],nofoccur-1);      
         map->real_size += 1;
     } else if (found){        
-        add_occurrence(&map->occurrences[index]);
+        add_n_occurrence(&map->occurrences[index],nofoccur);
     }
+}
+
+void add_word(wordsmap *map,char word[]){    
+    add_n_word(map,word,1);
 }
 
 woccurrence* get_woccurrences_collection(wordsmap map,int *size){
@@ -95,4 +100,13 @@ void print_map(wordsmap map){
             print_occurrence(map.occurrences[i]);
         }
     }    
+}
+
+wordsmap merge_woccurrences(woccurrence *occurrences, int size){
+    wordsmap map = new_wordsmap();
+
+    for (int i = 0; i < size; i++) {
+        add_n_word(&map,occurrences[i].word,occurrences[i].count);
+    }
+    return map;
 }
