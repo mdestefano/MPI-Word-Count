@@ -15,6 +15,7 @@ EXECUTABLE	:= main
 endif
 
 NP := 2
+DBG := -DDEBUG
 
 all: $(BIN)/$(EXECUTABLE)
 
@@ -25,4 +26,4 @@ run: all
 	mpirun -np $(NP) ./$(BIN)/$(EXECUTABLE) input/index.txt
 
 $(BIN)/$(EXECUTABLE): $(SRC)/*
-	$(CC) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
+	$(CC) $(DBG) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
