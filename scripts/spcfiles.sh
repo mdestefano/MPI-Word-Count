@@ -14,7 +14,7 @@ then
 fi
 
 EXECUTABLE="bin/"
-DATADIR="data/"
+DATADIR="input/"
 
 USER="ubuntu"
 
