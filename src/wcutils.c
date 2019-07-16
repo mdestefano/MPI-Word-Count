@@ -51,3 +51,12 @@ char * string_to_lowercase(char *string){
 	}
 	return p;
 }
+
+
+int checkString( const char s[] ){
+    unsigned char c;
+
+    while ( ( c = *s ) && ( isalpha( c ))  ) ++s;
+
+    return *s == '\0'; 
+}

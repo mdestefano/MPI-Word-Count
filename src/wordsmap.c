@@ -24,8 +24,7 @@ size_t hash(const char *str) {
 }
 
 static void resize_map(wordsmap *map){    
-    woccurrence* buf;
-    printf("DBG: map_size = %d, map_realsize %d!\n",map->size,map->real_size);
+    woccurrence* buf;    
     map->size = map->size * 2;
         
     //map->occurrences = realloc(map->occurrences,map->size);

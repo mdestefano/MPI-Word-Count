@@ -131,8 +131,11 @@ void count_words_in_line(char *line,wordsmap *map){
 	char* token; 
     char* rest = line; 
   
-    while ((token = strtok_r(rest, " ,.-\n:!?()'", &rest))) {
-		add_word(map,string_to_lowercase(token));
+    while ((token = strtok_r(rest, " ,.-\n:!?()';\"\t", &rest))) {
+			if(checkString(token)){
+				token = string_to_lowercase(token);
+				add_word(map,token);
+			}
 	}
 }
 

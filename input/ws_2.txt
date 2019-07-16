@@ -1,0 +1,2 @@
+input/bible.txt
+input/bible.txt

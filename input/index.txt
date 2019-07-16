@@ -1,1 +1,1 @@
-input/lorem.txt
+input/bible.txt

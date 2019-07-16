@@ -47,6 +47,8 @@
 *.idb
 *.pdb
 
+bin/*.csv
+
 # Kernel Module Compile Results
 *.mod*
 *.cmd
