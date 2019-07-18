@@ -3,13 +3,11 @@ This is a simple parallel implementation of words count using Open MPI developed
 
 ## Problem Statement
 
-The aim is to make a map-reduce version of words count using MPI in order to perform word counting over a large number of files.
+We will be doing a version of map-reduce using MPI to perform word counting over a large number of files. There are 3 steps to this process:
 
-The process is divided in 3 steps:
-
-- Assign each worker the input files' sections it has to work on;
-- Count the words occurrences in each section in parallel;
-- Merge the results obtained by each worker at master process;
+1. is to read in the master file list which will contain the names of all the files that are to be counted. Note that only 1 of your processes should read this file. Then each of the processes should receive their portion of the file from the master process. Once a process has received its list of files to process, it should then read in each of the files and perform a word counting, keeping track of the frequency each word found in the files occurs. We will call the histogram produced the local histogram. This is similar to the map stage or map-reduce.
+2. is to then combine frequencies of words across processes. For example the word 'cat' might be counted in multiple processes and we need to add up all these occurrences. This is similar to the reduce stage of map-reduce.
+3. is to have each of the processes send their local histograms to the master process. The master process just needs to gather up all this information. Note that there will be duplicate words between processes. The master should then print out the results to the screen.
 
 ## Solution Approach
 Before describing the solution algorithm, some **preliminary assumptions** must be carried out.
@@ -17,6 +15,7 @@ The algorithm considers a **single line of text** (with a maximum length of **25
 To achieve a balanced workload among all the processes, a **preliminary stage**, described below, **of parrallel line counting is performed**.
 Another preliminary assumption must be made: **each process can access to all the input files**. If the program is run in distributed memory, each node of the cluster must share the same directory structure and the same set of files.
 Last but not least, **each computation step** described below **is performed both by the master and the slaves**. Operation made exclusively by the master are explicitly mentioned.
+A word is considered as a sequence of alphabetic symbols, so "isn't", for example, is considered as two separate words. Also, numbers are not considered words.
 
 ### High Level Algorithm Description
 1. The master process recieves from CLI a index file in which are written all the file whoose words need to be counted.
@@ -42,8 +41,6 @@ The **wordsmap** module is the implementation of a hash table for word occurrenc
 The entire program is compiled using **make**.
 
 ### Implementation details
-Due to the different definition of word among the various languages, here a word is considered as a sequence of alphabetic symbols, thus "can't", for example, ends up being split in two words. Also, numbers are not considered words.
-
 As mentioned before, the **wordsmap** module implements a hash table. This is used to keep track of the various occurrences found by the workers. The table is implemented with **open addressing** method, in order to have data as much contiguous as possible. When all the buckets in the table are used, the table size is doubled using a `realloc` operation. This "optimistic" approach of sizing is used in almost all dynamic structures.
 
 The **chunk** and **woccurrence** structures are also defined as **MPI Datatypes** so that can be passed among processes.
@@ -54,14 +51,14 @@ As mentioned before, two *round* of parallel work is performed, since the unit o
 
 ### Benchmarking
 
-The solution has been tested over (up to) 8 AWS EC2 t2.small (1 virtual processor, 2 GB RAM) Ubuntu instances using the files inside the `input/` folder as input. Here are reported the results in terms of **Weak** and **Strong Scalability**,  which means using an increasing number of processors over a fixed input and using an increasing number of processors with the load-per-processor fixed respectively. Reported data are a mean of several executions. In a further section will be explained how to reproduce results. 
+The solution has been tested over a cluster of 8 AWS EC2 t2.small (1 virtual processor, 2 GB RAM) Ubuntu instances using the files inside the `input/` folder as input. Here are reported the results in terms of **Weak** and **Strong Scalability**,  which means using an increasing number of processors over a fixed input and using an increasing number of processors with the load-per-processor fixed respectively. Reported data are a mean of several executions. In a further section will be explained how to reproduce results. 
 
 #### Strong Scalability
-Here are reported data for strong scalability test. Input size is 10000 lines. The **Strong Scaling Efficency** is computed using the following formula: 
+Here are reported data for strong scalability test. Input size is 100182 lines. The **Strong Scaling Efficency** is computed using the following formula: 
 
-$$\frac{t_1}{N \times t_n}$$
+t_1 \ (N * t_n)
 
-where $t_1$ is the execution time with one processor, $N$ is the number of processors and $t_n$ the execution time with $N$ processors.
+where t_1 is the execution time with one processor, N is the number of processors and t_n the execution time with N processors.
 
 |Execution Time| N of Processors| Strong Scaling Efficency|
 |---|---|---|
@@ -76,15 +73,15 @@ where $t_1$ is the execution time with one processor, $N$ is the number of proce
 
 ![6fd31f74.png](https://github.com/mdestefano/MPI-Word-Count/blob/master/attachments/6fd31f74.png)
 
-The tests show that the more processes are used, the less time is needed to complete the task. However, as the number of processors goes above 4, the execution time reduction decreases, assesting on about 4,6 seconds. This means that above 4 processors, the gained speedup is not very high. This is also confirmed by the decreasing values of **Strong Scaling efficency**.
+The tests show that the more processes are used, the less time is needed to complete the task. However, as the number of processors goes above 4, the execution time reduction decreases, assesting on about 4,6 seconds. This means that above 4 processors, the gained speedup is low. This is also confirmed by the decreasing values of **Strong Scaling efficency**.
 
 #### Weak Scalability
 
-Here are reported data for weak scalability test. Input per process ratio is 10000:1. The **Weak Scaling Efficency** is computed using the following formula: 
+Here are reported data for weak scalability test. Input per process ratio is 100182:1. The **Weak Scaling Efficency** is computed using the following formula: 
 
-$$\frac{t_1}{t_n}$$
+t1/t_n
 
-where $t_1$ is the execution time with one processor and $t_n$ the execution time with $N$ processors.
+where t_1 is the execution time with one processor and t_n the execution time with N processors.
 
 |Execution Times|Processors|Weak Scaling Efficiency|
 |---|---|---|
