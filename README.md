@@ -74,7 +74,7 @@ where $t_1$ is the execution time with one processor, $N$ is the number of proce
 4,607374	s| 7	|43%
 4,6461395	s| 8	|37%
 
-![6fd31f74.png](:storage\f9c22048-3cd1-4bfc-afbe-0c9479f87631\6fd31f74.png)
+![6fd31f74.png](https://github.com/mdestefano/MPI-Word-Count/blob/master/attachments/6fd31f74.png)
 
 The tests show that the more processes are used, the less time is needed to complete the task. However, as the number of processors goes above 4, the execution time reduction decreases, assesting on about 4,6 seconds. This means that above 4 processors, the gained speedup is not very high. This is also confirmed by the decreasing values of **Strong Scaling efficency**.
 
@@ -97,7 +97,7 @@ where $t_1$ is the execution time with one processor and $t_n$ the execution tim
 21,805584	  |	7 |63%
 22,8588125	 |	8 | 60%
 
-![4f64b230.png](:storage\f9c22048-3cd1-4bfc-afbe-0c9479f87631\4f64b230.png)
+![4f64b230.png](https://github.com/mdestefano/MPI-Word-Count/blob/master/attachments/4f64b230.png)
 
 As data shows, effincency constantly decrease as the number of processors rises.
 
