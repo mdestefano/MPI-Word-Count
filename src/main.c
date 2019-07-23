@@ -139,7 +139,7 @@ void count_words_in_line(char *line,wordsmap *map){
 	}
 }
 
-wordsmap count_words_in_chunks(chunk* chunks, int nofchunks){
+wordsmap count_words_in_chunks(chunk* chunks, int nofchunks){	
 	wordsmap output_map = new_wordsmap();
 	char *line;
 	size_t len = 512;
@@ -149,20 +149,20 @@ wordsmap count_words_in_chunks(chunk* chunks, int nofchunks){
 	int line_index = 0;
 
 
-	for (int i = 0; i < nofchunks; i++)	{
+	for (int i = 0; i < nofchunks; i++)	{				
 		curr_file = fopen(chunks[i].filename,"r");
+		line_index = 0;
 		if(curr_file == NULL){
 			printf("ERROR OPENING FILE!\n");
 			exit(EXIT_FAILURE);
 		}
 
-		while(line_index<chunks[i].start_index){
+		while(line_index<chunks[i].start_index){			
 			getline(&line,&len,curr_file);
 			line_index += 1;
 		}
 
-		while ((line_size = getline(&line,&len,curr_file)) != -1 && line_index <= chunks[i].end_index){
-	
+		while ((line_size = getline(&line,&len,curr_file)) != -1 && line_index <= chunks[i].end_index){			
 			if(line[line_size-1] == '\n'){
 				line[line_size-1] = '\0';
 			}
@@ -246,6 +246,11 @@ int main(int argc, char *argv[]) {
 	if(my_rank == MASTER){
 
 		total_lines = wc_sum_array(global_file_lines_count,n_of_files);	
+		
+		#ifdef DEBUG
+			printf("DBG: MASTER: Total lines = %d\n",total_lines);
+		#endif // DEBUG
+
 		if(nofproc > total_lines){
 			printf("ERROR: Number of processes excedes total lines to count. Use less processes!\n");
 			MPI_Abort(MPI_COMM_WORLD,EXIT_FAILURE);
@@ -288,6 +293,7 @@ int main(int argc, char *argv[]) {
 
 	
 	local_map = count_words_in_chunks(local_chunks,local_nofchunks);
+
 	local_wocc_collection = get_woccurrences_collection(local_map,&local_woccurrences_size);
 	
 
@@ -307,14 +313,14 @@ int main(int argc, char *argv[]) {
 			sum += global_woccurrences_size_count[i]; 
 		}
 		
-		#ifdef DEBUG
+		/*#ifdef DEBUG
 	
 		for(int i = 0; i < nofproc; i++){
 			printf("global_woccurrences_size_count[%d]=%d, global_woccurrenecs_dspls[%d]=%d\n",i,global_woccurrences_size_count[i],i,global_woccurrenecs_dspls[i]);
 			
 		}
 		printf("DBG: MASTER: Global map size=%d\n",global_woccurrences_size);
-		#endif // DEBUG	
+		#endif // DEBUG	*/
 
 		global_wocc_collection = calloc(global_woccurrences_size,sizeof(woccurrence));
 	}

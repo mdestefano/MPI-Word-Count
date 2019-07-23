@@ -1,1 +1,2 @@
-input/bible.txt
+input/a.txt
+input/b.txt

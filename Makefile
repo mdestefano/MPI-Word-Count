@@ -15,7 +15,7 @@ EXECUTABLE	:= main
 endif
 
 NP := 2
-DBG := -DDEBUG
+DBG := 
 
 all: $(BIN)/$(EXECUTABLE)
 
